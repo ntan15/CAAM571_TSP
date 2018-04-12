@@ -40,9 +40,27 @@ tuple<int,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, vecto
     while(B.size() > 2)
     {
         int tight_idx = most_tight(A,B,e);
+/*
+cout << "Tightest vertex: ";
+for(int i=0; i<B[tight_idx].size(); i++) {
+cout << B[tight_idx][i] << " ";
+}
+cout << endl;
+*/
         A.push_back(B[tight_idx]);
         B.erase(B.begin()+tight_idx);
     }
+/*
+cout << "Merging (";
+for(int i=0; i<B[0].size(); i++) {
+cout << B[0][i] << " ";
+}
+cout << ") and (";
+for(int i=0; i<B[1].size(); i++) {
+cout << B[1][i] << " ";
+}
+cout << ")" << endl;
+*/
     B[0].insert(B[0].end(), B[1].begin(), B[1].end());
     B.erase(B.begin()+1);
 // Generate cut
@@ -67,6 +85,7 @@ tuple<int,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, vecto
             }
         }
     }
+//cout << "Weight of phase: " << weight << endl;
     return make_tuple(weight,edges);
 }
 
@@ -87,7 +106,9 @@ tuple<int,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,int
     {
         auto cut  = min_cut_phase(A,B,e,a);
         current_weight = get<0>(cut);
-        if( (current_weight < min_cut) && (current_weight > 0) )
+//cout << "Best weight so far: " << min_cut << endl;
+//cout << "New weight: " << current_weight << endl;
+        if( (current_weight < min_cut) )
         {
             min_cut = current_weight;
             current_cut = get<1>(cut);
@@ -95,6 +116,9 @@ tuple<int,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,int
         B.insert(B.end(),A.begin()+1, A.end());
         A.erase(A.begin()+1,A.end());
     }
+//for(int i=0; i<current_cut.size(); i++) {
+//cout << "[" << current_cut[i].first << "," << current_cut[i].second << "]" << endl;
+//}
     return make_tuple(min_cut,current_cut);
 }
 
@@ -141,7 +165,8 @@ int main(int argc, char* argv[]) {
     double best_obj = numeric_limits<double>::max();
     map<pair<int,int>,int> edge_map, lp_edge_map;
     vector<int> nodes;
-
+    tuple<int,vector<pair<int,int> > > mincut;
+ 
     if(argc < 2) {
         cerr << "Usage: tsp input_file.txt" << endl;
         return 0;
@@ -161,9 +186,9 @@ int main(int argc, char* argv[]) {
         edge_map[pair<int,int>(start,end)] = w;
         lp_edge_map[pair<int,int>(start,end)] = 1;
     }
-for(auto it=edge_map.begin(); it!=edge_map.end(); ++it) {
-cout << (it->first).first << " " << (it->first).second << " " << it->second << endl;
-}
+//for(auto it=edge_map.begin(); it!=edge_map.end(); ++it) {
+//cout << (it->first).first << " " << (it->first).second << " " << it->second << endl;
+//}
 // Set Nodes
     for(int i=0; i<n; i++) {
         nodes.push_back(i);
@@ -220,6 +245,16 @@ model.update();
             constr = model.addConstr(constr_expr.first == constr_expr.second);
             model.optimize();
 //cout << "Model Optimized, Retrieving Objective Value" << endl;
+if(iterations == 2)
+model.write("solve_2.lp");
+if(iterations == 3)
+model.write("solve_3.lp");
+if(iterations == 4)
+model.write("solve_4.lp");
+if(iterations == 5)
+model.write("solve_5.lp");
+if(iterations == 6)
+model.write("solve_6.lp");
             double C = model.get(GRB_DoubleAttr_ObjVal);
             if(C >= best_obj) {
 //cout << "Objective value is worse than current best" << endl;
@@ -240,18 +275,18 @@ cout << " " << (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
 }
 cout << endl;
 */
-auto testx = model.getVars();
-for(int i=0; i<m; i++) {
-cout << testx[i].get(GRB_DoubleAttr_X) << " ";
-}
-cout << endl;
+//auto testx = model.getVars();
+//for(int i=0; i<m; i++) {
+//cout << testx[i].get(GRB_DoubleAttr_X) << " ";
+//}
+//cout << endl;
 
                 for(int i=0; i<m; i++) {
                     x_val[i] = (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
-cout << " " << x_val[i];
+//cout << " " << x_val[i];
                     lp_edge_map[next(x.begin(),i)->first] = floor(x_val[i]);
                 }
-cout << endl;
+//cout << endl;
 /*
 for(int i=0; i<m; i++) {
 cout << " " << x_val[i];
@@ -261,26 +296,26 @@ cout << endl;
 //cout << "Generating Mincut" << endl;                
                 // Generate mincut based on LP solution
                 int vert = rand() % n;
-cout << "Starting vertex for mincut: " << vert << endl;
-                tuple<int,vector<pair<int,int> > > mincut = min_cut(nodes,lp_edge_map,vert);
+//cout << "Starting vertex for mincut: " << vert << endl;
+                mincut = min_cut(nodes,lp_edge_map,vert);
 //                tuple<int,vector<pair<int,int> > > mincut = min_cut(nodes,edge_map,vert);
-
-vector<pair<int,int> > min_cut_edges = get<1>(mincut);
-for(int i=0; i<min_cut_edges.size(); i++) {
-    cout << min_cut_edges[i].first << " " << min_cut_edges[i].second << endl;
-}
-
-cout << "Mincut weight: " << get<0>(mincut) << endl;                
+//int cut_weight = get<0>(mincut);
+//vector<pair<int,int> > cut_edges = get<1>(mincut);
+//cout << "cut_edges: " << cut_edges.size() << endl;
+//cout << "Mincut weight: " << get<0>(mincut) << endl;                
                 // Subtour elimination constraints
-                if(get<0>(mincut) < 2) {
+                if( (get<0>(mincut) < 2) && (get<1>(mincut).size() != 0)){
 //cout << "Mincut violated, adding subtour constraint" << endl;
                     GRBLinExpr st_expr = 0;
                     auto mincut_edges = get<1>(mincut);
+//cout << "Number of edges in mincut: " << mincut_edges.size() << endl;;
                     for(int i=0; i<mincut_edges.size(); i++) {
+//cout << "[" << mincut_edges[i].first << "," << mincut_edges[i].second << "]" << endl;
                         st_expr += x[mincut_edges[i]];
                     }
                     model.addConstr(st_expr >= 2);
                     model.remove(constr);
+model.write("current_lp.lp");
 subtour_iter++;
                 } else if(!is_binary(x)) {
 //cout << "Solution satisfies subtour but is fractional" << endl;
@@ -372,7 +407,8 @@ weight = get<0>(test_map);
 min_edges = get<1>(test_map);
 cout << "Cost of Min cut: " << weight << endl;
 for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
+//    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
+    cout << min_edges[i].first << " " << min_edges[i].second << endl;
 }
 
 cout << "Starting at vertex 1" << endl;
@@ -426,8 +462,7 @@ weight = get<0>(test_map);
 min_edges = get<1>(test_map);
 cout << "Cost of Min Cut: " << weight << endl;
 for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
-}
+    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl; }
 
     return 1;
 }
