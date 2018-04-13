@@ -29,54 +29,39 @@ unsigned int hash_test(unsigned int x) {
 }
 
 int contains_val(vector< vector<int> >& v, int val);
-tuple<int,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,int>& e, int a);
-tuple<int,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,int>& e, int a);
-int most_tight(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,int>& e);
+tuple<double,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,double>& e, int a);
+tuple<double,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,double>& e, int a);
+int most_tight(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,double>& e);
 bool is_binary(map<pair<int,int>,GRBVar>& x, int m);
 
 
-tuple<int,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,int>& e, int a)
+tuple<double,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,double>& e, int a)
 {
     while(B.size() > 2)
     {
         int tight_idx = most_tight(A,B,e);
-/*
-cout << "Tightest vertex: ";
-for(int i=0; i<B[tight_idx].size(); i++) {
-cout << B[tight_idx][i] << " ";
-}
-cout << endl;
-*/
         A.push_back(B[tight_idx]);
         B.erase(B.begin()+tight_idx);
     }
-/*
-cout << "Merging (";
-for(int i=0; i<B[0].size(); i++) {
-cout << B[0][i] << " ";
-}
-cout << ") and (";
-for(int i=0; i<B[1].size(); i++) {
-cout << B[1][i] << " ";
-}
-cout << ")" << endl;
-*/
     B[0].insert(B[0].end(), B[1].begin(), B[1].end());
     B.erase(B.begin()+1);
 // Generate cut
     vector<pair<int,int> > edges;
-    int weight = 0;
+    double weight = 0;
+    int edge_count = 0;
     for(int i=0; i<A.size(); i++) {
         for(int j=0; j<A[i].size(); j++) {
             for(int k=0; k<B.size(); k++) {
                 for(int l=0; l<B[k].size(); l++) {
                     auto iter = e.find(pair<int,int>(A[i][j],B[k][l]));
                     if(iter != e.end()) {
+                        edge_count++;
                         weight += iter->second;
                         edges.push_back(make_pair(A[i][j],B[k][l]));
                     } else {
                         iter = e.find(pair<int,int>(B[k][l],A[i][j]));
                         if(iter != e.end()) {
+                            edge_count++;
                             weight += iter->second;
                             edges.push_back(make_pair(B[k][l],A[i][j]));
                         }
@@ -85,14 +70,15 @@ cout << ")" << endl;
             }
         }
     }
-//cout << "Weight of phase: " << weight << endl;
+if(edge_count == 0)
+weight = -1;
     return make_tuple(weight,edges);
 }
 
-tuple<int,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,int>& e, int a)
+tuple<double,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,double>& e, int a)
 {
-    int min_cut = numeric_limits<int>::max();
-    int current_weight;
+    double min_cut = numeric_limits<double>::max();
+    double current_weight;
     vector<pair<int,int> > current_cut;
     vector< vector<int> > A;
     A.push_back(vector<int>(1,a));
@@ -106,9 +92,7 @@ tuple<int,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,int
     {
         auto cut  = min_cut_phase(A,B,e,a);
         current_weight = get<0>(cut);
-//cout << "Best weight so far: " << min_cut << endl;
-//cout << "New weight: " << current_weight << endl;
-        if( (current_weight < min_cut) )
+        if( (current_weight < min_cut) && (current_weight!=-1))
         {
             min_cut = current_weight;
             current_cut = get<1>(cut);
@@ -116,16 +100,13 @@ tuple<int,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,int
         B.insert(B.end(),A.begin()+1, A.end());
         A.erase(A.begin()+1,A.end());
     }
-//for(int i=0; i<current_cut.size(); i++) {
-//cout << "[" << current_cut[i].first << "," << current_cut[i].second << "]" << endl;
-//}
     return make_tuple(min_cut,current_cut);
 }
 
-int most_tight(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,int>& e)
+int most_tight(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,double>& e)
 {
     int idx = -1;
-    vector<int> sum_weights = vector<int>(B.size(),0);
+    vector<double> sum_weights = vector<double>(B.size(),0);
     for(int i=0; i<A.size(); i++) {
         for(int j=0; j<A[i].size(); j++) {
             for(int k=0; k<B.size(); k++) {
@@ -163,9 +144,10 @@ int main(int argc, char* argv[]) {
     int n; // # of nodes
     int m; // # of edges
     double best_obj = numeric_limits<double>::max();
-    map<pair<int,int>,int> edge_map, lp_edge_map;
+    map<pair<int,int>,int> edge_map;
+    map<pair<int,int>,double> lp_edge_map;
     vector<int> nodes;
-    tuple<int,vector<pair<int,int> > > mincut;
+    tuple<double,vector<pair<int,int> > > mincut;
  
     if(argc < 2) {
         cerr << "Usage: tsp input_file.txt" << endl;
@@ -186,9 +168,6 @@ int main(int argc, char* argv[]) {
         edge_map[pair<int,int>(start,end)] = w;
         lp_edge_map[pair<int,int>(start,end)] = 1;
     }
-//for(auto it=edge_map.begin(); it!=edge_map.end(); ++it) {
-//cout << (it->first).first << " " << (it->first).second << " " << it->second << endl;
-//}
 // Set Nodes
     for(int i=0; i<n; i++) {
         nodes.push_back(i);
@@ -234,17 +213,19 @@ int main(int argc, char* argv[]) {
         GRBLinExpr initial_constr = 0;
         S.push(pair<GRBLinExpr,GRBLinExpr>(initial_constr,initial_constr));
 clock_t timer = clock();
+clock_t grb_timer;
 int iterations = 0;
 int subtour_iter = 0;
         while(S.size() != 0) {
 iterations++;
 model.update();
-//cout << "Getting next branch constraint" << endl;
             constr_expr = S.top();
-//cout << "Adding branch constraint to model" << endl;
             constr = model.addConstr(constr_expr.first == constr_expr.second);
+//grb_timer = clock();
             model.optimize();
-//cout << "Model Optimized, Retrieving Objective Value" << endl;
+//grb_timer = clock() - grb_timer;
+//cout << "GRB Time ("<<subtour_iter<<"): " << scientific << ((double)timer)/(double)CLOCKS_PER_SEC << endl;
+//cout << "GRB Time clock tics ("<<subtour_iter<<"): " << timer << endl;
 if(iterations == 2)
 model.write("solve_2.lp");
 if(iterations == 3)
@@ -257,60 +238,22 @@ if(iterations == 6)
 model.write("solve_6.lp");
             double C = model.get(GRB_DoubleAttr_ObjVal);
             if(C >= best_obj) {
-//cout << "Objective value is worse than current best" << endl;
-//cout << "    Removing branch constraint from stack and moving to next constraint" << endl;
                 // Remove last constraint
                 model.remove(constr);
                 S.pop();
                 // Add next constraint
-//                constr_expr = S.top();
-//                constr = model.addConstr(constr_expr.first == constr_expr.second);
             } else {
-//cout << "Objective value is better than current best" << endl;
-                // Modify edge weights to correspond to solution of LP
-//cout << "Retrieving solution" << endl;
-/*
-for(int i=0; i<m; i++) {
-cout << " " << (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
-}
-cout << endl;
-*/
-//auto testx = model.getVars();
-//for(int i=0; i<m; i++) {
-//cout << testx[i].get(GRB_DoubleAttr_X) << " ";
-//}
-//cout << endl;
 
                 for(int i=0; i<m; i++) {
                     x_val[i] = (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
-//cout << " " << x_val[i];
-                    lp_edge_map[next(x.begin(),i)->first] = floor(x_val[i]);
+                    lp_edge_map[next(x.begin(),i)->first] = x_val[i];
                 }
-//cout << endl;
-/*
-for(int i=0; i<m; i++) {
-cout << " " << x_val[i];
-}
-cout << endl;
-*/
-//cout << "Generating Mincut" << endl;                
-                // Generate mincut based on LP solution
-                int vert = rand() % n;
-//cout << "Starting vertex for mincut: " << vert << endl;
-                mincut = min_cut(nodes,lp_edge_map,vert);
-//                tuple<int,vector<pair<int,int> > > mincut = min_cut(nodes,edge_map,vert);
-//int cut_weight = get<0>(mincut);
-//vector<pair<int,int> > cut_edges = get<1>(mincut);
-//cout << "cut_edges: " << cut_edges.size() << endl;
-//cout << "Mincut weight: " << get<0>(mincut) << endl;                
+                mincut = min_cut(nodes,lp_edge_map,0);
                 // Subtour elimination constraints
                 if( (get<0>(mincut) < 2) && (get<1>(mincut).size() != 0)){
-//cout << "Mincut violated, adding subtour constraint" << endl;
                     GRBLinExpr st_expr = 0;
                     auto mincut_edges = get<1>(mincut);
-//cout << "Number of edges in mincut: " << mincut_edges.size() << endl;;
                     for(int i=0; i<mincut_edges.size(); i++) {
-//cout << "[" << mincut_edges[i].first << "," << mincut_edges[i].second << "]" << endl;
                         st_expr += x[mincut_edges[i]];
                     }
                     model.addConstr(st_expr >= 2);
@@ -318,7 +261,6 @@ cout << endl;
 model.write("current_lp.lp");
 subtour_iter++;
                 } else if(!is_binary(x)) {
-//cout << "Solution satisfies subtour but is fractional" << endl;
                     // Find fractional x
                     unsigned int frac = -1;
                     for(frac=0; frac<m; frac++) {
@@ -329,39 +271,19 @@ subtour_iter++;
                     auto frac_x = next(x.begin(),frac);
                     GRBLinExpr branch_expr = frac_x->second;
                     // Remove last constraint from model
-//cout << "    Removing last branch constraint from model" << endl;                    
                     model.remove(constr);
-//cout << "    Removing last branch constraint from stack" << endl;                    
                     S.pop();
-//cout << "    Adding 2 branch constraints" << endl;
                     S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,0));
                     S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,1));
-                    // Add next constraint to model
-//                    constr_expr = S.top();
-//                    constr = model.addConstr(constr_expr.first == constr_expr.second);
                 } else {
-//cout << "Solution satisfies subtour, is fractional, and is better than current best" << endl;
                     best_obj = C;
                     best_x = x_val;
-/*
-for(int i=0; i<m; i++) {
-cout << " " << best_x[i];
-}
-cout << endl;
-*/
-//cout << "    Removing last branch constraint from model" << endl;                    
                     // Remove last constraint from model
                     model.remove(constr);
-//cout << "    Removing last branch constraint from stack" << endl;                    
                     S.pop();
                     // Add next constraint to model
-//cout << "   Getting next branch constraint" << endl;
-//                    constr_expr = S.top();
-//cout << "   Adding next branch constraint from model" << endl;
-//                    constr = model.addConstr(constr_expr.first == constr_expr.second);
                 }               
             }
-//        } while(S.size() != 0);
         }
 timer = clock() - timer;
         cout << "Cost of best tour: " << best_obj << endl;       
@@ -390,14 +312,14 @@ cout << "Subtour Iterations: " << subtour_iter << endl;
         cout << "Error during optimization" << endl;
     }
 
-
+/*
 clock_t timer = clock();
-tuple<int,vector<pair<int,int> > > test_map = min_cut(nodes,edge_map,rand()%n);
+tuple<double,vector<pair<int,int> > > test_map = min_cut(nodes,edge_map,rand()%n);
 timer = clock() - timer;
 cout.precision(numeric_limits<double>::max_digits10);
 cout << "Min Cut Algorithm Map Time: " << scientific << ((double)timer)/(double)CLOCKS_PER_SEC << endl;
 cout << "Min Cut Algorithm Map Clock Tics: " << timer << endl;
-int weight = get<0>(test_map);
+double weight = get<0>(test_map);
 vector<pair<int,int> > min_edges = get<1>(test_map);
 cout << "Cost of Min cut: " << weight << endl;
 
@@ -463,7 +385,7 @@ min_edges = get<1>(test_map);
 cout << "Cost of Min Cut: " << weight << endl;
 for(int i=0; i<min_edges.size(); i++) {
     cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl; }
-
+*/
     return 1;
 }
 

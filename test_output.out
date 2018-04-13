@@ -1,7 +1,23 @@
-0 1 1 //for edge(0) of tour
-0 2 1 //for edge(1) of tour
-1 3 1 //for edge(6) of tour
-2 5 1 //for edge(11) of tour
-3 4 1 //for edge(12) of tour
-4 5 1 //for edge(14) of tour
-The cost of the best tour is: 229(the cost the best tour)
+0 7 1 //for edge(6) of tour
+0 13 1 //for edge(12) of tour
+1 2 1 //for edge(21) of tour
+1 16 1 //for edge(35) of tour
+2 15 1 //for edge(53) of tour
+3 17 1 //for edge(73) of tour
+3 21 1 //for edge(77) of tour
+4 10 1 //for edge(83) of tour
+4 14 1 //for edge(87) of tour
+5 6 1 //for edge(95) of tour
+5 14 1 //for edge(103) of tour
+6 11 1 //for edge(115) of tour
+7 17 1 //for edge(135) of tour
+8 9 1 //for edge(140) of tour
+8 10 1 //for edge(141) of tour
+9 18 1 //for edge(161) of tour
+11 12 1 //for edge(176) of tour
+12 13 1 //for edge(186) of tour
+15 20 1 //for edge(214) of tour
+16 21 1 //for edge(220) of tour
+18 19 1 //for edge(225) of tour
+19 20 1 //for edge(228) of tour
+The cost of the best tour is: 7013(the cost the best tour)
