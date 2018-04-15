@@ -100,6 +100,7 @@ tuple<double,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,
         B.insert(B.end(),A.begin()+1, A.end());
         A.erase(A.begin()+1,A.end());
     }
+//cout << "MINCUT cost: " << setprecision(12) << min_cut <<endl;
     return make_tuple(min_cut,current_cut);
 }
 
@@ -325,14 +326,23 @@ cout << "Cost: " << C << endl;
                     }
                     mincut = min_cut(nodes,lp_edge_map,rand()%n);
 
-cout << "Mincut weight: " << setprecision(12) << get<0>(mincut) << endl;
+cout.precision(numeric_limits<double>::max_digits10);
+cout << "Mincut weight: " << fixed << get<0>(mincut) << endl;
                 // Subtour elimination constraints
 
                     double weight = get<0>(mincut);
-                    if( abs(round(weight) - weight) < pow(10,-7)) {
-                        weight = round(weight);
-cout << "Rounded weight: " << weight << endl;
-                    }
+if( round(weight) != weight ) {
+cout << "Difference: " << round(weight)-weight << endl;
+if(abs(round(weight)-weight) < pow(10,-7)) {
+cout << "Tolerance reached\n";
+weight = round(weight);
+cout << "New Weight: " << weight << endl;
+}}
+//                    if(round(weight) != weight) {
+//                    if( abs(round(weight) - weight) < pow(10,-10)) {
+//                        weight = round(weight);
+//cout << "Rounded weight: " << weight << endl;
+//                    }
                     if( weight < 2) {
 cout << "Found subtour, add constraint\n";
                         GRBLinExpr st_expr = 0;
@@ -354,6 +364,8 @@ cout << "Fractional solution satisfies subtour constraints (weight="<<get<0>(min
                                 break;
                             }
                         }
+if(frac==-1)
+cout << "Bad index when trying to find fractional edge\n";
                         auto frac_x = next(x.begin(),frac);
                         GRBLinExpr branch_expr = frac_x->second;
                     // Remove last constraint from model
