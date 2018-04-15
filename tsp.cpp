@@ -216,28 +216,30 @@ int main(int argc, char* argv[]) {
         }
     	model.write("initial.lp");
         // Last added branch constraint
-        GRBConstr constr;
-        pair<GRBLinExpr,GRBLinExpr> constr_expr;
+//        GRBConstr constr;
+//        pair<GRBLinExpr,GRBLinExpr> constr_expr;
         // LP Stack
         stack<pair<GRBLinExpr,GRBLinExpr> > S;
-        GRBLinExpr initial_constr = 2;
-        S.push(pair<GRBLinExpr,GRBLinExpr>(initial_constr,initial_constr));
+//        GRBLinExpr initial_constr = 2;
+//        S.push(pair<GRBLinExpr,GRBLinExpr>(initial_constr,initial_constr));
+//        GRBLinExpr initial_constr = 2;
+        S.push(pair<GRBLinExpr,GRBLinExpr>(2,2));
 
         stack<GRBConstr> S_constr;
 
         int iterations = 0;
         int subtour_iter = 0;
 
-auto begin = chrono::high_resolution_clock::now();
+        auto begin = chrono::high_resolution_clock::now();
         while(S.size() != 0) {
-            iterations++;
             model.update();
 
 //cout << "Got constraint from stack S\n";
-            constr_expr = S.top();
+//            constr_expr = S.top();
 //cout << "Added constraint to model\n";
-            S_constr.push(model.addConstr(constr_expr.first == constr_expr.second));
-            constr = S_constr.top();
+//            S_constr.push(model.addConstr(constr_expr.first == constr_expr.second));
+            S_constr.push(model.addConstr(S.top().first == S.top().second));
+//            constr = S_constr.top();
 
             model.optimize();
 /*
@@ -249,12 +251,14 @@ cout << "Status: " << model.get(GRB_IntAttr_Status) << endl;
 
 
             if(model.get(GRB_IntAttr_Status) == 3) {
+            iterations++;
 //cout << "Infeasible Solution\n";
-                    while( (constr_expr.second.getValue() == 0) ) {
+//                    while( (constr_expr.second.getValue() == 0) ) {
+                    while( (S.top().second.getValue() == 0) ) {
                         model.remove(S_constr.top());
                         S.pop();
                         S_constr.pop();
-                        constr_expr = S.top();
+//                        constr_expr = S.top();
                     }
                     model.remove(S_constr.top());
                     S.pop();
@@ -285,13 +289,15 @@ cout << "Size of S_constr: " << S_constr.size() << endl;
 
                 double C = model.get(GRB_DoubleAttr_ObjVal);
                 if(C >= best_obj) {
+            iterations++;
 //cout << "Solution is worse\n";
                     // Remove last constraint
-                    while( (constr_expr.second.getValue() == 0) ) {
+//                    while( (constr_expr.second.getValue() == 0) ) {
+                    while( (S.top().second.getValue() == 0) ) {
                         model.remove(S_constr.top());
                         S.pop();
                         S_constr.pop();
-                        constr_expr = S.top();
+//                        constr_expr = S.top();
                     }
                     model.remove(S_constr.top());
                     S.pop();
@@ -369,11 +375,12 @@ weight = round(weight);
                             st_expr += x[mincut_edges[i]];
                         }
                         model.addConstr(st_expr >= 2);
-                        model.remove(constr);
+                        model.remove(S_constr.top());
                         model.write("current_lp.lp");
                         subtour_iter++;
                         S_constr.pop();
                     } else if(!is_binary(x)) {
+            iterations++;
 //cout << "Fractional solution satisfies subtour constraints (weight="<<get<0>(mincut)<<"), branch\n";
                     // Find fractional x
 /*                    
@@ -390,16 +397,18 @@ weight = round(weight);
                         S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,0));
                         S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,1));
                     } else {
+            iterations++;
 //cout << "Found new integral lower bound\n";
                         best_obj = C;
                         best_x = x_val;
 //cout << "RHS: " << constr.get(GRB_DoubleAttr_RHS) << endl;
                     // Remove last constraint from model
-                    while( (constr_expr.second.getValue() == 0)  ) {
+//                    while( (constr_expr.second.getValue() == 0)  ) {
+                    while( (S.top().second.getValue() == 0)  ) {
                         model.remove(S_constr.top());
                         S.pop();
                         S_constr.pop();
-                        constr_expr = S.top();
+//                        constr_expr = S.top();
                     }
                     model.remove(S_constr.top());
                     S.pop();
@@ -433,12 +442,12 @@ cout << "Size of S: " << S.size() << endl;
 cout << "Size of S_constr: " << S_constr.size() << endl;
 */
         }
-auto end = chrono::high_resolution_clock::now();
-cout << "High Resolution Time: " << chrono::duration_cast<chrono::nanoseconds>(end-begin).count() << "ns" << endl;
-cout << "High Resolution Time (s): " << setprecision(12) << (double)(chrono::duration_cast<chrono::nanoseconds>(end-begin).count()/pow(10,9)) << "s" << endl;
-cout << "Cost of best tour: " << best_obj << endl;       
-cout << "Iterations: " << iterations << endl;
-cout << "Subtour Iterations: " << subtour_iter << endl;
+        auto end = chrono::high_resolution_clock::now();
+        cout << "High Resolution Time: " << chrono::duration_cast<chrono::nanoseconds>(end-begin).count() << "ns" << endl;
+        cout << "High Resolution Time (s): " << setprecision(12) << (double)(chrono::duration_cast<chrono::nanoseconds>(end-begin).count()/pow(10,9)) << "s" << endl;
+        cout << "Cost of best tour: " << best_obj << endl;       
+        cout << "Iterations: " << iterations << endl;
+        cout << "Subtour Iterations: " << subtour_iter << endl;
 
 // Output Results
         f_out.open("test_output.out");
