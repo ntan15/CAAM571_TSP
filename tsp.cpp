@@ -6,9 +6,9 @@
 
 #include <stdlib.h>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <vector>
-#include <array>
 #include <time.h>
 #include <limits>
 #include <algorithm>
@@ -131,7 +131,8 @@ int most_tight(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,
 bool is_binary(map<pair<int,int>,GRBVar>& x) {
     for(auto it=x.begin(); it!=x.end(); ++it) {
         double xval = (it->second).get(GRB_DoubleAttr_X);
-        if(floor(xval) != xval) {
+        if( xval != round(xval) ) {
+//        if( abs(xval - round(xval)) > pow(10,-7) ) {
             return false;
         }
     }
@@ -144,7 +145,7 @@ int main(int argc, char* argv[]) {
     int n; // # of nodes
     int m; // # of edges
     double best_obj = numeric_limits<double>::max();
-    map<pair<int,int>,int> edge_map;
+    map<pair<int,int>,double> edge_map;
     map<pair<int,int>,double> lp_edge_map;
     vector<int> nodes;
     tuple<double,vector<pair<int,int> > > mincut;
@@ -210,85 +211,202 @@ int main(int argc, char* argv[]) {
         pair<GRBLinExpr,GRBLinExpr> constr_expr;
         // LP Stack
         stack<pair<GRBLinExpr,GRBLinExpr> > S;
-        GRBLinExpr initial_constr = 0;
+        GRBLinExpr initial_constr = 2;
         S.push(pair<GRBLinExpr,GRBLinExpr>(initial_constr,initial_constr));
-clock_t timer = clock();
-clock_t grb_timer;
-int iterations = 0;
-int subtour_iter = 0;
+
+        stack<GRBConstr> S_constr;
+
+        clock_t timer = clock();
+        int iterations = 0;
+        int subtour_iter = 0;
+
+
         while(S.size() != 0) {
-iterations++;
-model.update();
+            iterations++;
+            model.update();
+
+cout << "Got constraint from stack S\n";
             constr_expr = S.top();
-            constr = model.addConstr(constr_expr.first == constr_expr.second);
-//grb_timer = clock();
+cout << "Added constraint to model\n";
+            S_constr.push(model.addConstr(constr_expr.first == constr_expr.second));
+            constr = S_constr.top();
+
             model.optimize();
-//grb_timer = clock() - grb_timer;
-//cout << "GRB Time ("<<subtour_iter<<"): " << scientific << ((double)timer)/(double)CLOCKS_PER_SEC << endl;
-//cout << "GRB Time clock tics ("<<subtour_iter<<"): " << timer << endl;
-if(iterations == 2)
-model.write("solve_2.lp");
-if(iterations == 3)
-model.write("solve_3.lp");
-if(iterations == 4)
-model.write("solve_4.lp");
-if(iterations == 5)
-model.write("solve_5.lp");
-if(iterations == 6)
-model.write("solve_6.lp");
-            double C = model.get(GRB_DoubleAttr_ObjVal);
-            if(C >= best_obj) {
-                // Remove last constraint
-                model.remove(constr);
+cout << "Stacks after optimize\n";
+cout << "Size of S: " << S.size() << endl;
+cout << "Size of S_constr: " << S_constr.size() << endl;
+cout << "Status: " << model.get(GRB_IntAttr_Status) << endl;
+
+            if(model.get(GRB_IntAttr_Status) == 3) {
+cout << "Infeasible Solution\n";
+
+                while(constr_expr.second.getValue() == 0) {
+cout << "Removed parent\n";
+cout << "Size of S: " << S.size() << endl;
+cout << "Size of S_constr: " << S_constr.size() << endl;
+                    model.remove(S_constr.top());
+                    S_constr.pop();
+                    S.pop();
+                    if(S.size() > 0) {
+                        constr_expr = S.top();
+                    } else {
+                        break;
+                    }
+                }
+                model.remove(S_constr.top());
                 S.pop();
-                // Add next constraint
+                S_constr.pop();
+/*
+if((constr_expr.second.getValue() == 0) ){
+    cout << "last child" << endl;
+    cout << "Size of S: " << S.size() << endl;
+    cout << "Size of S_constr: " << S_constr.size() << endl;
+    model.remove(S_constr.top());
+    S_constr.pop();
+    S.pop();
+}
+                model.remove(S_constr.top());
+                S.pop();
+                S_constr.pop();
+*/
             } else {
 
-                for(int i=0; i<m; i++) {
-                    x_val[i] = (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
-                    lp_edge_map[next(x.begin(),i)->first] = x_val[i];
-                }
-                mincut = min_cut(nodes,lp_edge_map,0);
-                // Subtour elimination constraints
-                if( (get<0>(mincut) < 2) && (get<1>(mincut).size() != 0)){
-                    GRBLinExpr st_expr = 0;
-                    auto mincut_edges = get<1>(mincut);
-                    for(int i=0; i<mincut_edges.size(); i++) {
-                        st_expr += x[mincut_edges[i]];
-                    }
-                    model.addConstr(st_expr >= 2);
-                    model.remove(constr);
-model.write("current_lp.lp");
-subtour_iter++;
-                } else if(!is_binary(x)) {
-                    // Find fractional x
-                    unsigned int frac = -1;
-                    for(frac=0; frac<m; frac++) {
-                        if(floor(x_val[frac]) != x_val[frac]) {
-                            break;
+
+                double C = model.get(GRB_DoubleAttr_ObjVal);
+                if(C >= best_obj) {
+cout << "Solution is worse\n";
+                // Remove last constraint
+/*
+if((constr_expr.second.getValue() == 0) ){
+    cout << "last child" << endl;
+    cout << "Size of S: " << S.size() << endl;
+    cout << "Size of S_constr: " << S_constr.size() << endl;
+    model.remove(S_constr.top());
+    S_constr.pop();
+    S.pop();
+}
+                model.remove(S_constr.top());
+                S.pop();
+                S_constr.pop();
+*/
+
+                    if(constr_expr.second.getValue() == 0) {
+
+                        while(constr_expr.second.getValue() == 0) {
+cout << "Removed parent\n";
+cout << "Size of S: " << S.size() << endl;
+cout << "Size of S_constr: " << S_constr.size() << endl;
+                            model.remove(S_constr.top());
+                            S_constr.pop();
+                            S.pop();
+                            if(S.size() > 0) {
+                                constr_expr = S.top();
+                            } else {
+                                break;
+                            }
                         }
+
+                        model.remove(S_constr.top());
+                        S_constr.pop();
+                        S.pop();
+
+                    } else {
+                        model.remove(S_constr.top());
+                        S.pop();
+                        S_constr.pop();
                     }
-                    auto frac_x = next(x.begin(),frac);
-                    GRBLinExpr branch_expr = frac_x->second;
-                    // Remove last constraint from model
-                    model.remove(constr);
-                    S.pop();
-                    S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,0));
-                    S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,1));
+
+
                 } else {
-                    best_obj = C;
-                    best_x = x_val;
+cout << "Cost: " << C << endl;
+                    for(int i=0; i<m; i++) {
+                        x_val[i] = (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
+                        lp_edge_map[next(x.begin(),i)->first] = x_val[i];
+                    }
+                    mincut = min_cut(nodes,lp_edge_map,rand()%n);
+
+cout << "Mincut weight: " << setprecision(12) << get<0>(mincut) << endl;
+                // Subtour elimination constraints
+
+                    double weight = get<0>(mincut);
+                    if( abs(round(weight) - weight) < pow(10,-7)) {
+                        weight = round(weight);
+cout << "Rounded weight: " << weight << endl;
+                    }
+                    if( weight < 2) {
+cout << "Found subtour, add constraint\n";
+                        GRBLinExpr st_expr = 0;
+                        auto mincut_edges = get<1>(mincut);
+                        for(int i=0; i<mincut_edges.size(); i++) {
+                            st_expr += x[mincut_edges[i]];
+                        }
+                        model.addConstr(st_expr >= 2);
+                        model.remove(constr);
+                        model.write("current_lp.lp");
+                        subtour_iter++;
+                        S_constr.pop();
+                    } else if(!is_binary(x)) {
+cout << "Fractional solution satisfies subtour constraints (weight="<<get<0>(mincut)<<"), branch\n";
+                    // Find fractional x
+                        unsigned int frac = -1;
+                        for(frac=0; frac<m; frac++) {
+                            if(round(x_val[frac]) != x_val[frac]) {
+                                break;
+                            }
+                        }
+                        auto frac_x = next(x.begin(),frac);
+                        GRBLinExpr branch_expr = frac_x->second;
                     // Remove last constraint from model
-                    model.remove(constr);
-                    S.pop();
-                    // Add next constraint to model
-                }               
+                        S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,0));
+                        S.push(pair<GRBLinExpr,GRBLinExpr>(branch_expr,1));
+                    } else {
+cout << "Found new integral lower bound\n";
+                        best_obj = C;
+                        best_x = x_val;
+cout << "RHS: " << constr.get(GRB_DoubleAttr_RHS) << endl;
+                    // Remove last constraint from model
+
+                        while(constr_expr.second.getValue() == 0) {
+cout << "Removed parent\n";
+cout << "Size of S: " << S.size() << endl;
+cout << "Size of S_constr: " << S_constr.size() << endl;
+                            model.remove(S_constr.top());
+                            S_constr.pop();
+                            S.pop();
+                            if(S.size() > 0) {
+                                constr_expr = S.top();
+                            } else {
+                                break;
+                            }
+                        }
+                        model.remove(S_constr.top());
+                        S.pop();
+                        S_constr.pop();
+
+/*
+if((constr_expr.second.getValue() == 0)){
+cout << "Removed parent\n";
+cout << "Size of S: " << S.size() << endl;
+cout << "Size of S_constr: " << S_constr.size() << endl;
+model.remove(S_constr.top());
+S_constr.pop();
+S.pop();
+}
+model.remove(S_constr.top());
+S.pop();
+S_constr.pop();
+*/
+
+                    }               
+                }
             }
+cout << "End of loop iteration\n";
+cout << "Size of S: " << S.size() << endl;
+cout << "Size of S_constr: " << S_constr.size() << endl;
         }
 timer = clock() - timer;
         cout << "Cost of best tour: " << best_obj << endl;       
-cout.precision(numeric_limits<double>::max_digits10);
-cout << "Algorithm Time: " << scientific << ((double)timer)/(double)CLOCKS_PER_SEC << endl;
+cout << "Algorithm Time: " << ((double)timer)/(double)CLOCKS_PER_SEC << endl;
 cout << "Algorithm Clock Tics: " << timer << endl;
 cout << "Iterations: " << iterations << endl;
 cout << "Subtour Iterations: " << subtour_iter << endl;
@@ -312,80 +430,6 @@ cout << "Subtour Iterations: " << subtour_iter << endl;
         cout << "Error during optimization" << endl;
     }
 
-/*
-clock_t timer = clock();
-tuple<double,vector<pair<int,int> > > test_map = min_cut(nodes,edge_map,rand()%n);
-timer = clock() - timer;
-cout.precision(numeric_limits<double>::max_digits10);
-cout << "Min Cut Algorithm Map Time: " << scientific << ((double)timer)/(double)CLOCKS_PER_SEC << endl;
-cout << "Min Cut Algorithm Map Clock Tics: " << timer << endl;
-double weight = get<0>(test_map);
-vector<pair<int,int> > min_edges = get<1>(test_map);
-cout << "Cost of Min cut: " << weight << endl;
-
-cout << "Starting at vertex 0" << endl;
-test_map = min_cut(nodes,edge_map,rand()%n);
-weight = get<0>(test_map);
-min_edges = get<1>(test_map);
-cout << "Cost of Min cut: " << weight << endl;
-for(int i=0; i<min_edges.size(); i++) {
-//    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
-    cout << min_edges[i].first << " " << min_edges[i].second << endl;
-}
-
-cout << "Starting at vertex 1" << endl;
-test_map = min_cut(nodes,edge_map,1);
-weight = get<0>(test_map);
-min_edges = get<1>(test_map);
-cout << "Cost of Min Cut: " << weight << endl;
-for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
-}
-
-cout << "Starting at vertex 2" << endl;
-test_map = min_cut(nodes,edge_map,2);
-weight = get<0>(test_map);
-min_edges = get<1>(test_map);
-cout << "Cost of Min Cut: " << weight << endl;
-for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
-}
-
-cout << "Starting at vertex 3" << endl;
-test_map = min_cut(nodes,edge_map,3);
-weight = get<0>(test_map);
-min_edges = get<1>(test_map);
-cout << "Cost of Min Cut: " << weight << endl;
-for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
-}
-
-cout << "Starting at vertex 4" << endl;
-test_map = min_cut(nodes,edge_map,4);
-weight = get<0>(test_map);
-min_edges = get<1>(test_map);
-cout << "Cost of Min Cut: " << weight << endl;
-for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
-}
-
-cout << "Starting at vertex 5" << endl;
-test_map = min_cut(nodes,edge_map,5);
-weight = get<0>(test_map);
-min_edges = get<1>(test_map);
-cout << "Cost of Min Cut: " << weight << endl;
-for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl;
-}
-
-cout << "Starting at vertex 6" << endl;
-test_map = min_cut(nodes,edge_map,6);
-weight = get<0>(test_map);
-min_edges = get<1>(test_map);
-cout << "Cost of Min Cut: " << weight << endl;
-for(int i=0; i<min_edges.size(); i++) {
-    cout << get<0>(min_edges[i]) << " " << get<1>(min_edges[i]) << endl; }
-*/
     return 1;
 }
 
