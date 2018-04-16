@@ -68,4 +68,8 @@
 56 62 1 //for edge(2329) of tour
 62 65 1 //for edge(2389) of tour
 63 64 1 //for edge(2394) of tour
-The cost of the best tour is: 675(the cost the best tour)
+The cost of the best tour is: 675
+High Resolution Time: 52116065478ns
+High Resolution Time (s): 52.116065478s
+Iterations: 275
+Subtour Iterations: 55

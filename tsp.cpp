@@ -34,6 +34,8 @@ tuple<double,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, ve
 tuple<double,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,double>& e, int a);
 int most_tight(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,double>& e);
 bool is_binary(map<pair<int,int>,GRBVar>& x, int m);
+void tsp(GRBModel& model, GRBConstr& constr, vector<double>& best_x);
+double nearest_neighbor(vector<int>& V, map<pair<int,int>, double>& E);
 
 bool same(double* x, double* y, int m) {
     for(int i=0; i<m; i++) {
@@ -42,6 +44,43 @@ bool same(double* x, double* y, int m) {
         }
     }
     return true;
+}
+
+double nearest_neighbor(vector<int>& V, map<pair<int,int>, double>& E, int a) {
+    int n = V.size();
+    vector<bool> visited = vector<bool>(V.size(), false);
+    int start = a;
+    int origin = start;
+    int end = start;
+    double dist = 0;
+    for(int i=0; i<n-1; i++) {
+        visited[start] = true;
+        double nearest = numeric_limits<double>::max();
+        for(int j=0; j<n; j++) {
+            if(!visited[j]) {
+                auto edge = E.find(pair<int,int>(start,j));
+                if( (edge != E.end()) && (edge->second < nearest) ) {
+                    nearest = edge->second;
+                    end = j;
+                }
+                edge = E.find(pair<int,int>(j,start));
+                if( (edge != E.end()) && (edge->second < nearest) ) {
+                    nearest = edge->second;
+                    end = j;
+                }
+            }
+        }
+        start = end;
+        dist += nearest;
+    }
+    auto edge = E.find(pair<int,int>(start,origin));
+    if(edge != E.end()) {
+        dist += edge->second;
+    } else {
+        edge = E.find(pair<int,int>(origin,start));
+        dist += edge->second;
+    }
+    return dist;
 }
 
 tuple<double,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,double>& e, int a)
@@ -147,7 +186,66 @@ bool is_binary(map<pair<int,int>,GRBVar>& x) {
     }
     return true;
 }
+/*
+double tsp(GRBModel& model, map<pair<int,int>,GRBVar>& x, pair<GRBLinExpr,GRBLinExpr>& constr, vector<double>& best_x, double best_cost, int n, int m) {
+    auto constraint = model.addConstr(constr.first == constr.second);
+    model.optimize();
+    vector<double> x_val = vector<double>(m,0);
+    map<pair<int,int>,double> lp_edge_map;
+    
+    if(model.get(GRB_IntAttr_Status) == 3) {
+        model.remove(constraint);
+        return best_cost;
+    }
 
+    double C = model.get(GRB_DoubleAttr_ObjVal);
+    if(C >= best_cost) {
+        model.remove(constraint);
+        return best_cost;
+    } else {
+        for(int i=0; i<m; i++) {
+            x_val[i] = (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
+            lp_edge_map[next(x.begin(),i)->first] = x_val[i];
+        }
+
+        unsigned int frac = -1;
+        for(frac=0; frac<m; frac++) {
+            if(round(x_val[frac]) != x_val[frac]) {
+                break;
+            }
+        }
+        auto mincut = min_cut(nodes,lp_edge_map,next(x.begin(),frac)->first.first);
+        double weight = get<0>(mincut);
+        if(abs(round(weight)-weight) < pow(10,-7)) {
+//cout << "Tolerance reached\n";
+            weight = round(weight);
+//cout << "New Weight: " << weight << endl;
+        }
+        if( weight < 2 ) {
+        // Subtour
+            GRBLinExpr st_expr = 0;
+            auto mincut_edges = get<1>(mincut);
+            for(int i=0; i<mincut_edges.size(); i++) {
+                st_expr += x[mincut_edges[i]];
+            }
+            model.addConstr(st_expr >= 2);
+        } else if(!is_binary(lp_edge_map)) {
+        // Branch
+            auto frac_x = next(x.begin(),frac);
+            GRBLinExpr branch_expr = frac_x->second;
+            tsp(model, x, pair<GRBLinExpr,GRBLinExpr>(branch_expr,1), best_x, best_cost, n, m);
+            tsp(model, x, pair<GRBLinExpr,GRBLinExpr>(branch_expr,0), best_x, best_cost, n, m);
+            model.remove(constraint);
+        } else {
+        // New lower bound
+            best_obj = C;
+            best_x = x_val;
+            model.remove(constraint);
+        }
+    }
+    
+}
+*/
 int main(int argc, char* argv[]) {
     ifstream f_in;
     ofstream f_out;
@@ -229,6 +327,15 @@ int main(int argc, char* argv[]) {
 
         int iterations = 0;
         int subtour_iter = 0;
+        double greedy;
+        for(int i=0; i<n; i++) {
+            greedy = nearest_neighbor(nodes, edge_map, i);
+//            cout << "Greedy cost starting at " << i << ": " << greedy << endl;
+            if(greedy < best_obj)
+                best_obj = greedy;
+        }
+        cout << "Greedy upperbound Cost: " << best_obj << endl;
+        best_obj = greedy;
 
         auto begin = chrono::high_resolution_clock::now();
         while(S.size() != 0) {
@@ -251,18 +358,18 @@ cout << "Status: " << model.get(GRB_IntAttr_Status) << endl;
 
 
             if(model.get(GRB_IntAttr_Status) == 3) {
-            iterations++;
+                iterations++;
 //cout << "Infeasible Solution\n";
 //                    while( (constr_expr.second.getValue() == 0) ) {
-                    while( (S.top().second.getValue() == 0) ) {
-                        model.remove(S_constr.top());
-                        S.pop();
-                        S_constr.pop();
-//                        constr_expr = S.top();
-                    }
+                while( (S.top().second.getValue() == 0) ) {
                     model.remove(S_constr.top());
                     S.pop();
                     S_constr.pop();
+//                    constr_expr = S.top();
+                }
+                model.remove(S_constr.top());
+                S.pop();
+                S_constr.pop();
 
 //                while(constr_expr.second.getValue() == 0) {
 /*
@@ -333,7 +440,7 @@ cout << "Size of S_constr: " << S_constr.size() << endl;
 */
 
                 } else {
-//cout << "Cost: " << C << endl;
+cout << "Cost: " << C << endl;
                     for(int i=0; i<m; i++) {
                         x_val[i] = (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
                         lp_edge_map[next(x.begin(),i)->first] = x_val[i];
@@ -441,6 +548,7 @@ cout << "End of loop iteration\n";
 cout << "Size of S: " << S.size() << endl;
 cout << "Size of S_constr: " << S_constr.size() << endl;
 */
+
         }
         auto end = chrono::high_resolution_clock::now();
         cout << "High Resolution Time: " << chrono::duration_cast<chrono::nanoseconds>(end-begin).count() << "ns" << endl;
@@ -450,7 +558,11 @@ cout << "Size of S_constr: " << S_constr.size() << endl;
         cout << "Subtour Iterations: " << subtour_iter << endl;
 
 // Output Results
-        f_out.open("test_output.out");
+        if(argc == 3) {
+            f_out.open(argv[2]);
+        } else {
+            f_out.open("test_output.out");
+        }
         auto edge_map_iter = edge_map.begin();
         for(int i=0; i<m; i++) {
             if(best_x[i] == 1) {
@@ -458,7 +570,11 @@ cout << "Size of S_constr: " << S_constr.size() << endl;
             }
             ++edge_map_iter;
         }
-        f_out << "The cost of the best tour is: "<< best_obj << "(the cost the best tour)" << endl;
+        f_out << "The cost of the best tour is: "<< best_obj << endl;
+        f_out << "High Resolution Time: " << chrono::duration_cast<chrono::nanoseconds>(end-begin).count() << "ns" << endl;
+        f_out << "High Resolution Time (s): " << setprecision(12) << (double)(chrono::duration_cast<chrono::nanoseconds>(end-begin).count()/pow(10,9)) << "s" << endl;
+        f_out << "Iterations: " << iterations << endl;
+        f_out << "Subtour Iterations: " << subtour_iter << endl;
         f_out.close();
 
     } catch(GRBException e) {
@@ -467,7 +583,6 @@ cout << "Size of S_constr: " << S_constr.size() << endl;
     } catch (...) {
         cout << "Error during optimization" << endl;
     }
-
     return 1;
 }
 
