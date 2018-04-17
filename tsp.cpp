@@ -34,7 +34,7 @@ tuple<double,vector<pair<int,int> > > min_cut_phase(vector< vector<int> >& A, ve
 tuple<double,vector<pair<int,int> > > min_cut(vector<int>& v, map<pair<int,int>,double>& e, int a);
 int most_tight(vector< vector<int> >& A, vector< vector<int> >& B, map<pair<int,int>,double>& e);
 bool is_binary(map<pair<int,int>,GRBVar>& x, int m);
-void tsp(GRBModel& model, GRBConstr& constr, vector<double>& best_x);
+double tsp(GRBModel& model, map<pair<int,int>,GRBVar>& x, pair<GRBLinExpr,GRBLinExpr>& constr, vector<double>& best_x, double& best_cost, int n, int m, vector<int>& nodes);
 double nearest_neighbor(vector<int>& V, map<pair<int,int>, double>& E);
 
 bool same(double* x, double* y, int m) {
@@ -180,14 +180,16 @@ bool is_binary(map<pair<int,int>,GRBVar>& x) {
     for(auto it=x.begin(); it!=x.end(); ++it) {
         double xval = (it->second).get(GRB_DoubleAttr_X);
 //        if( xval != round(xval) ) {
-        if( abs(xval - round(xval)) > pow(10,-7) ) {
+        if( abs(xval - round(xval)) > pow(10,-10) ) {
             return false;
         }
     }
     return true;
 }
-/*
-double tsp(GRBModel& model, map<pair<int,int>,GRBVar>& x, pair<GRBLinExpr,GRBLinExpr>& constr, vector<double>& best_x, double best_cost, int n, int m) {
+
+double tsp(GRBModel& model, map<pair<int,int>,GRBVar>& x, pair<GRBLinExpr,GRBLinExpr>& constr, 
+           vector<double>& best_x, double& best_cost, int n, int m, vector<int>& nodes) {
+cout << "Best Cost so far: " << setprecision(12) << best_cost << endl;
     auto constraint = model.addConstr(constr.first == constr.second);
     model.optimize();
     vector<double> x_val = vector<double>(m,0);
@@ -199,6 +201,9 @@ double tsp(GRBModel& model, map<pair<int,int>,GRBVar>& x, pair<GRBLinExpr,GRBLin
     }
 
     double C = model.get(GRB_DoubleAttr_ObjVal);
+cout << fixed;
+cout << "Cost: " << setprecision(12) << C << endl;
+cout << "Best Cost so far: " << setprecision(12) << best_cost << endl;
     if(C >= best_cost) {
         model.remove(constraint);
         return best_cost;
@@ -209,19 +214,25 @@ double tsp(GRBModel& model, map<pair<int,int>,GRBVar>& x, pair<GRBLinExpr,GRBLin
         }
 
         unsigned int frac = -1;
-        for(frac=0; frac<m; frac++) {
-            if(round(x_val[frac]) != x_val[frac]) {
-                break;
+        double frac_diff = 1.0;
+        for(int i=0; i<m; i++) {
+            if( (abs(round(x_val[i]) - x_val[i]) > pow(10,-10)) ) {
+                if(abs(x_val[i] - 0.5) < frac_diff) {
+                    frac_diff = abs(x_val[i] - 0.5);
+                    frac = i;
+                }
             }
         }
-        auto mincut = min_cut(nodes,lp_edge_map,next(x.begin(),frac)->first.first);
+        auto mincut = min_cut(nodes,lp_edge_map,rand()%n);
         double weight = get<0>(mincut);
-        if(abs(round(weight)-weight) < pow(10,-7)) {
-//cout << "Tolerance reached\n";
+cout << "Weight before rounding: " << setprecision(12) << weight << endl;
+        if(abs(round(weight)-weight) < pow(10,-10)) {
+cout << "Rounding difference: " << abs(round(weight)-weight) << endl;
             weight = round(weight);
-//cout << "New Weight: " << weight << endl;
         }
-        if( weight < 2 ) {
+
+cout << "Weight after rounding: " << setprecision(12) << weight << endl;
+        while( weight < 2 ) {
         // Subtour
             GRBLinExpr st_expr = 0;
             auto mincut_edges = get<1>(mincut);
@@ -229,23 +240,58 @@ double tsp(GRBModel& model, map<pair<int,int>,GRBVar>& x, pair<GRBLinExpr,GRBLin
                 st_expr += x[mincut_edges[i]];
             }
             model.addConstr(st_expr >= 2);
-        } else if(!is_binary(lp_edge_map)) {
+            model.optimize();
+            if(model.get(GRB_IntAttr_Status) == 3) {
+                model.remove(constraint);
+                return best_cost;
+            }
+            C = model.get(GRB_DoubleAttr_ObjVal);
+            if(C >= best_cost) {
+                model.remove(constraint);
+                return best_cost;
+            }
+            for(int i=0; i<m; i++) {
+                x_val[i] = (next(x.begin(),i)->second).get(GRB_DoubleAttr_X);
+                lp_edge_map[next(x.begin(),i)->first] = x_val[i];
+            }
+            frac = -1;
+            frac_diff = 1.0;
+            for(int i=0; i<m; i++) {
+                if( (abs(round(x_val[i]) - x_val[i]) > pow(10,-10)) ) {
+                    if(abs(x_val[i] - 0.5) < frac_diff) {
+                        frac_diff = abs(x_val[i] - 0.5);
+                        frac = i;
+                    }
+                }
+            }
+            mincut = min_cut(nodes,lp_edge_map,rand()%n);
+            weight = get<0>(mincut);
+cout << "Weight before rounding: " << setprecision(12) << weight << endl;
+            if(abs(round(weight)-weight) < pow(10,-10)) {
+                weight = round(weight);
+            }
+cout << "Weight after rounding: " << setprecision(12) << weight << endl;
+        }
+        if(!is_binary(x)) {
         // Branch
+cout << "BRANCHING DAMMMIT====================================================" << endl;
             auto frac_x = next(x.begin(),frac);
             GRBLinExpr branch_expr = frac_x->second;
-            tsp(model, x, pair<GRBLinExpr,GRBLinExpr>(branch_expr,1), best_x, best_cost, n, m);
-            tsp(model, x, pair<GRBLinExpr,GRBLinExpr>(branch_expr,0), best_x, best_cost, n, m);
+            pair<GRBLinExpr,GRBLinExpr> branch1 = pair<GRBLinExpr,GRBLinExpr>(branch_expr,1);
+            pair<GRBLinExpr,GRBLinExpr> branch0 = pair<GRBLinExpr,GRBLinExpr>(branch_expr,0);
+            tsp(model, x, branch1, best_x, best_cost, n, m, nodes);
+            tsp(model, x, branch0, best_x, best_cost, n, m, nodes);
             model.remove(constraint);
         } else {
         // New lower bound
-            best_obj = C;
+            best_cost = C;
             best_x = x_val;
             model.remove(constraint);
         }
     }
-    
+    return best_cost;
 }
-*/
+
 int main(int argc, char* argv[]) {
     ifstream f_in;
     ofstream f_out;
@@ -313,14 +359,8 @@ int main(int argc, char* argv[]) {
             vertex_constraints[i] = model.addConstr(vert_constr[i] == 2);
         }
     	model.write("initial.lp");
-        // Last added branch constraint
-//        GRBConstr constr;
-//        pair<GRBLinExpr,GRBLinExpr> constr_expr;
         // LP Stack
         stack<pair<GRBLinExpr,GRBLinExpr> > S;
-//        GRBLinExpr initial_constr = 2;
-//        S.push(pair<GRBLinExpr,GRBLinExpr>(initial_constr,initial_constr));
-//        GRBLinExpr initial_constr = 2;
         S.push(pair<GRBLinExpr,GRBLinExpr>(2,2));
 
         stack<GRBConstr> S_constr;
@@ -330,13 +370,12 @@ int main(int argc, char* argv[]) {
         double greedy;
         for(int i=0; i<n; i++) {
             greedy = nearest_neighbor(nodes, edge_map, i);
-//            cout << "Greedy cost starting at " << i << ": " << greedy << endl;
             if(greedy < best_obj)
                 best_obj = greedy;
         }
         cout << "Greedy upperbound Cost: " << best_obj << endl;
-        best_obj = greedy;
-
+//        best_obj = greedy;
+#ifdef STACK
         auto begin = chrono::high_resolution_clock::now();
         while(S.size() != 0) {
             model.update();
@@ -551,11 +590,16 @@ cout << "Size of S_constr: " << S_constr.size() << endl;
 
         }
         auto end = chrono::high_resolution_clock::now();
+#endif
+cout << "Best Cost from greedy algorithm: " << best_obj << endl;
+        auto begin = chrono::high_resolution_clock::now();
+double test_obj = tsp(model, x, S.top(), best_x, best_obj, n, m, nodes);
+        auto end = chrono::high_resolution_clock::now();
         cout << "High Resolution Time: " << chrono::duration_cast<chrono::nanoseconds>(end-begin).count() << "ns" << endl;
         cout << "High Resolution Time (s): " << setprecision(12) << (double)(chrono::duration_cast<chrono::nanoseconds>(end-begin).count()/pow(10,9)) << "s" << endl;
         cout << "Cost of best tour: " << best_obj << endl;       
-        cout << "Iterations: " << iterations << endl;
-        cout << "Subtour Iterations: " << subtour_iter << endl;
+//        cout << "Iterations: " << iterations << endl;
+//        cout << "Subtour Iterations: " << subtour_iter << endl;
 
 // Output Results
         if(argc == 3) {

@@ -14,9 +14,9 @@
 8 16 1 //for edge(531) of tour
 8 39 1 //for edge(554) of tour
 9 51 1 //for edge(626) of tour
+10 47 1 //for edge(681) of tour
 10 63 1 //for edge(697) of tour
-10 66 1 //for edge(700) of tour
-11 33 1 //for edge(725) of tour
+11 20 1 //for edge(712) of tour
 11 59 1 //for edge(751) of tour
 12 28 1 //for edge(777) of tour
 12 69 1 //for edge(818) of tour
@@ -30,7 +30,6 @@
 17 41 1 //for edge(1060) of tour
 18 23 1 //for edge(1093) of tour
 19 29 1 //for edge(1149) of tour
-20 32 1 //for edge(1201) of tour
 20 33 1 //for edge(1202) of tour
 21 58 1 //for edge(1275) of tour
 21 65 1 //for edge(1282) of tour
@@ -45,6 +44,7 @@
 30 37 1 //for edge(1641) of tour
 30 68 1 //for edge(1672) of tour
 31 41 1 //for edge(1683) of tour
+32 33 1 //for edge(1712) of tour
 32 61 1 //for edge(1740) of tour
 34 68 1 //for edge(1818) of tour
 34 69 1 //for edge(1819) of tour
@@ -56,7 +56,6 @@
 39 60 1 //for edge(1970) of tour
 40 42 1 //for edge(1981) of tour
 43 67 1 //for edge(2087) of tour
-47 53 1 //for edge(2167) of tour
 47 66 1 //for edge(2180) of tour
 48 54 1 //for edge(2189) of tour
 49 50 1 //for edge(2205) of tour
@@ -64,12 +63,13 @@
 50 55 1 //for edge(2229) of tour
 51 59 1 //for edge(2251) of tour
 53 61 1 //for edge(2286) of tour
+53 66 1 //for edge(2291) of tour
 55 64 1 //for edge(2318) of tour
 56 62 1 //for edge(2329) of tour
 62 65 1 //for edge(2389) of tour
 63 64 1 //for edge(2394) of tour
 The cost of the best tour is: 675
-High Resolution Time: 52116065478ns
-High Resolution Time (s): 52.116065478s
-Iterations: 275
-Subtour Iterations: 55
+High Resolution Time: 21357253675ns
+High Resolution Time (s): 21.357253675s
+Iterations: 0
+Subtour Iterations: 0

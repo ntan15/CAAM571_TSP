@@ -15,8 +15,9 @@ CFLAGS   = -Wall -std=c++14 -O2 -Wno-sign-compare
 
 OBJECTS=$(SOURCE:.cc=.0)
 SOURCE= tsp.cpp
+#SOURCE= tsp_testing.cpp
 
 tsp: $(OBJECTS)
-	scl enable devtoolset-4 'g++ -m64 -g -o tsp $(OBJECTS) -I$(INC) $(CLIB) $(CPPLIB) -lpthread -lm $(CFLAGS)'
+	scl enable devtoolset-4 'g++ -m64 -o tsp $(OBJECTS) -I$(INC) $(CLIB) $(CPPLIB) -lpthread -lm $(CFLAGS)'
 
 
